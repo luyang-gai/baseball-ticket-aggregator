@@ -2,3 +2,4 @@ node_modules/
 'Git Bash.vbs'
 .idea/
 .DS_Store
+dist/
