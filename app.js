@@ -1,10 +1,12 @@
+'use strict';
+
 const mongoClient = require('mongodb').MongoClient;
 const https = require('https');
 
 const keysToDelete = ['links', 'announce_date', 'date_tbd', 'type', 'time_tbd', 'taxonomies', 'performers', 'datetime_utc', 'created_at', 'venue', 'datetime_tbd'];
 const mongoDbName = 'test';
-const mongoCollectionName = 'newBaseballData'
-const seatGeekURL = 'https://api.seatgeek.com/2/events?q=seattle+mariners';
+const mongoCollectionName = 'tempData'
+const seatGeekURL = 'https://api.seatgeek.com/2/events?venue.id=13';
 const intervalTimer = 30 * 60 * 1000; //30 minutes
 
 function cleanupObject(event) {
@@ -23,21 +25,24 @@ function handleJson(json) {
       let recordsInserted = 0;
 
       for (var event of json.events) {
-        cleanupObject(event);
-        event['entryDate'] = currentDate.toDateString();
-        event['entryTime'] = currentDate.toLocaleTimeString();
-        collection.insert(event, (err) => {
-          if (err) {
-            console.log(err)
-          } else {
-            console.log('one collection insert event passed');
-            recordsInserted++;
-            if (recordsInserted === json.events.length) {
-              console.log('Closing connection');
-              db.close();
+        //make sure it's a mariners home game
+        //if (event.short_title.includes('at Mariners')) {
+          cleanupObject(event);
+          event['entryDate'] = currentDate.toDateString();
+          event['entryTime'] = currentDate.toLocaleTimeString();
+          collection.insert(event, (err) => {
+            if (err) {
+              console.log(err)
+            } else {
+              console.log('one collection insert event passed');
+              recordsInserted++;
+              if (recordsInserted === json.events.length) {
+                console.log('Closing connection');
+                db.close();
+              }
             }
-          }
-        });
+          });
+        //}
       }
     } else {
       console.log('failed to connect');
@@ -64,7 +69,8 @@ function getTicketData() {
 }
 
 function init() {
-  setInterval(getTicketData, intervalTimer);
+  //setInterval(getTicketData, intervalTimer);
+  getTicketData();
 }
 
 init();
