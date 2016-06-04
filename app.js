@@ -3,49 +3,106 @@
 const mongoClient = require('mongodb').MongoClient;
 const https = require('https');
 
-const keysToDelete = ['links', 'announce_date', 'date_tbd', 'type', 'time_tbd', 'taxonomies', 'performers', 'datetime_utc', 'created_at', 'venue', 'datetime_tbd'];
-const mongoDbName = 'test';
-const mongoCollectionName = 'tempData'
-const seatGeekURL = 'https://api.seatgeek.com/2/events?venue.id=13';
-const intervalTimer = 30 * 60 * 1000; //30 minutes
+const eventKeysToDelete = ['links', 'announce_date', 'date_tbd', 'type', 'time_tbd', 'taxonomies', 'performers', 'datetime_utc', 'created_at', 'venue',
+                      'datetime_tbd', 'visible_until_utc'];
+const tpsKeysToDelete = ['title', 'score', 'datetime_local', 'url', 'short_title'];
 
-function cleanupObject(event) {
-  for (var key of keysToDelete) {
+const mongoDbName = 'test';
+const eventsCollectionName = 'events';
+const tpsCollectionName = 'ticketPriceSnapshots';
+
+const seatGeekURL = 'https://api.seatgeek.com/2/events?venue.id=13';
+const intervalTimer = 15 * 60 * 1000; //30 minutes
+
+function cleanupTps(event) {
+  for (let key of eventKeysToDelete) {
+    delete event[key];
+  }
+  for (let key of tpsKeysToDelete) {
+    delete event[key];
+  }
+
+  let stats = event.stats;
+  for (let stat in stats) {
+    event[stat] = stats[stat];
+  }
+  delete event['stats'];
+}
+
+function cleanupEvent(event) {
+  for (let key of eventKeysToDelete) {
     delete event[key];
   }
 }
 
 function handleJson(json) {
+  let callbacksNeeded = json.events.length * 2;
+  let callbacksMade = 0;
+
+  //TODO: figure out less shitty way to handle callbacks
+  function callback(db) {
+    callbacksMade++;
+    if (callbacksMade === callbacksNeeded) {
+      db.close();
+    }
+  }
+
+  console.log('handleJson called');
   mongoClient.connect(`mongodb://localhost:27017/${mongoDbName}`, (err, db) => {
     if (!err) {
       console.log('We are connected');
 
-      let currentDate = new Date(Date.now());
-      let collection = db.collection(mongoCollectionName);
-      let recordsInserted = 0;
-
       for (var event of json.events) {
-        //make sure it's a mariners home game
-        //if (event.short_title.includes('at Mariners')) {
-          cleanupObject(event);
-          event['entryDate'] = currentDate.toDateString();
-          event['entryTime'] = currentDate.toLocaleTimeString();
-          collection.insert(event, (err) => {
-            if (err) {
-              console.log(err)
-            } else {
-              console.log('one collection insert event passed');
-              recordsInserted++;
-              if (recordsInserted === json.events.length) {
-                console.log('Closing connection');
-                db.close();
-              }
-            }
-          });
-        //}
+        insertEvents(db,event, callback);
+        insertTPS(db, event, callback);
       }
     } else {
       console.log('failed to connect');
+    }
+  });
+}
+
+function insertTPS(db, tps, callback) {
+  const tpsCollection = db.collection(tpsCollectionName);
+  let currentDate = new Date(Date.now());
+
+  cleanupTps(tps);
+  tps['UTC'] = currentDate.toUTCString();
+  tps['entryDate'] = currentDate.toDateString();
+  tps['entryTime'] = currentDate.toLocaleTimeString();
+  tpsCollection.insert(tps, (err) => {
+    if (err) {
+      console.log(err)
+    } else {
+      console.log('one collection insert event passed');
+    }
+    callback(db);
+  });
+}
+
+/*
+  Given a collection and an event, check if the eventId is stored
+  If stored: do nothing
+  If not stored: store it
+ */
+function insertEvents(db, event, callback) {
+  const eventsCollection = db.collection(eventsCollectionName);
+
+  eventsCollection.findOne({id: event.id}, function(err, doc) {
+    if (err) {
+      console.log(`err: ${err}`);
+    }
+    //doc doesnt exist
+    if (doc === null) {
+      cleanupEvent(event);
+      collection.insert(event, function() {
+        console.log(`Event inserted: ${event.id}`);
+        callback(db);
+      });
+    }
+    else {
+      console.log(`${event.id} already exists. Not inserting`);
+      callback(db);
     }
   });
 }
@@ -69,8 +126,8 @@ function getTicketData() {
 }
 
 function init() {
-  //setInterval(getTicketData, intervalTimer);
-  getTicketData();
+  setInterval(getTicketData, intervalTimer);
+  //getTicketData();
 }
 
 init();

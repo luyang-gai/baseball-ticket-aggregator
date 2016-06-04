@@ -4,7 +4,7 @@ const express = require('express');
 //const commandLineArgs = require('command-line-args');
 const mongoClient = require('mongodb').MongoClient;
 const mongoDbName = 'test';
-const mongoCollectionName = 'newBaseballData'
+const mongoCollectionName = 'tempData'
 const app = express();
 
 //const cli = commandLineArgs([
@@ -55,7 +55,7 @@ function setHeaders(res) {
 function getMongoData(callback) {
   mongoClient.connect(`mongodb://localhost:27017/${mongoDbName}`, (err, db) => {
     if (!err) {
-      console.log('We are connected');
+      //console.log('We are connected');
       let collection = db.collection(mongoCollectionName);
 
       collection.find().toArray((err, docs) => {
