@@ -1,17 +1,12 @@
 'use strict';
 
 const express = require('express');
-//const commandLineArgs = require('command-line-args');
 const mongoClient = require('mongodb').MongoClient;
 const mongoDbName = 'test';
-const mongoCollectionName = 'tempData'
+const eventsCollectionName = 'events';
+const tpsCollectionName = 'ticketPriceSnapshots';
 const app = express();
 
-//const cli = commandLineArgs([
-//  { name: 'verbose', alias: 'v', type: Boolean, defaultValue: false },
-//  { name: 'port',    alias: 'p', type: Number,  defaultValue: 8081  },
-//  { name: 'report',  alias: 'r', type: Boolean, defaultValue: false }
-//]);
 let options = {
   port: 8081
 };
@@ -29,13 +24,29 @@ app.options('*', (req, res) => {
   res.status(200).json({});
 });
 
-app.get('/data', (req, res) => {
+app.get('/events', (req, res) => {
   setHeaders(res);
 
-  getMongoData(function(results) {
+  getEvents(function(results) {
     res.status( 200 ).send(results);
   });
 
+});
+
+app.get('/events/:eventId', (req, res) => {
+  setHeaders(res);
+
+  getEventById(req.params.eventId, (results) => {
+    res.status( 200 ).send(results);
+  });
+});
+
+app.get('/tps/:eventId', (req, res) => {
+  setHeaders(res);
+
+  getTpsByEventId(req.params.eventId, (results) => {
+    res.status( 200 ).send(results);
+  });
 });
 
 app.listen(options.port, () => {
@@ -52,18 +63,29 @@ function setHeaders(res) {
   }
 }
 
-function getMongoData(callback) {
+function mongoQuery(collectionName, query, callback) {
   mongoClient.connect(`mongodb://localhost:27017/${mongoDbName}`, (err, db) => {
     if (!err) {
-      //console.log('We are connected');
-      let collection = db.collection(mongoCollectionName);
+      let collection = db.collection(collectionName);
 
-      collection.find().toArray((err, docs) => {
+      collection.find(query).toArray( (err, doc) => {
         db.close();
-        callback(docs);
-      })
+        callback(doc);
+      });
     } else {
       console.log('failed to connect');
     }
   });
+}
+
+function getTpsByEventId(eventId, callback) {
+  mongoQuery(tpsCollectionName, {'id': Number(eventId)}, callback);
+}
+
+function getEvents(callback) {
+  mongoQuery(eventsCollectionName, {}, callback);
+}
+
+function getEventById(id, callback) {
+  mongoQuery(eventsCollectionName, {'id': Number(id)}, callback);
 }
