@@ -97,7 +97,7 @@ function insertEvents(db, event, callback) {
     //doc doesnt exist
     if (doc === null) {
       cleanupEvent(event);
-      collection.insert(event, function() {
+      eventsCollection.insert(event, function() {
         console.log(`Event inserted: ${event.id}`);
         callback(db);
       });
@@ -128,7 +128,7 @@ function getTicketData() {
 
 function init() {
   setInterval(getTicketData, intervalTimer);
-  //getTicketData();
+  // getTicketData();
 }
 
 init();
